@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terraform Plan Formatter</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      margin: 0 auto;
+      padding: 20px;
+      color: #333;
+      line-height: 1.6;
+    }
+
+    h1 {
+      color: #0c4b33;
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      color: #0c4b33;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 5px;
+      margin-top: 30px;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    @media (min-width: 1024px) {
+      .container {
+        flex-direction: row;
+      }
+    }
+
+    .input-section {
+      flex: 0 0 400px;
+      min-width: 320px;
+      max-width: 500px;
+      background-color: #f9f9f9;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .output-section {
+      flex: 1 1 0%;
+      width: 100%;
+      background-color: #f9f9f9;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-left: 20px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 500px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 14px;
+      resize: vertical;
+    }
+
+    button {
+      background-color: #5bbf60;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      background-color: #4a9c4f;
+    }
+
+    .output {
+      white-space: normal;
+      font-family: monospace;
+      font-size: 14px;
+      overflow-y: auto;
+      background-color: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      min-height: 500px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .summary {
+      background-color: #e7f5e8;
+      border-left: 4px solid #5bbf60;
+      padding: 8px 12px;
+      margin-bottom: 15px;
+      border-radius: 0 4px 4px 0;
+    }
+
+    .summary h2 {
+      margin: 0 0 8px 0;
+      font-size: 1.2em;
+    }
+
+    .summary ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .summary li {
+      margin: 0;
+      padding: 0;
+      line-height: 1.5;
+    }
+
+    .resource-section {
+      margin-bottom: 8px;
+    }
+
+    .resource-header {
+      background-color: #eee;
+      padding: 6px 10px;
+      border-radius: 4px;
+      margin-bottom: 2px;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .resource-header:hover {
+      background-color: #e0e0e0;
+    }
+
+    .toggle-icon {
+      transition: transform 0.3s ease;
+    }
+
+    .collapsed .toggle-icon {
+      transform: rotate(-90deg);
+    }
+
+    .resource-content {
+      transition: max-height 0.3s ease-out;
+      overflow: hidden;
+      margin-left: 8px;
+      margin-bottom: 2px;
+    }
+
+    .collapsed .resource-content {
+      max-height: 0;
+      margin: 0;
+    }
+
+    .add {
+      color: #2e8b57;
+    }
+
+    .remove {
+      color: #cc0000;
+    }
+
+    .change {
+      color: #ff8c00;
+    }
+
+    .code-block {
+      background-color: #f0f0f0;
+      border-left: 3px solid #5bbf60;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 0 4px 4px 0;
+      overflow-x: auto;
+    }
+
+    .footer {
+      margin-top: 40px;
+      text-align: center;
+      font-size: 14px;
+      color: #666;
+    }
+
+    ul {
+      margin: 0 0 2px 18px;
+      padding: 0;
+    }
+
+    li {
+      margin: 0;
+      padding: 0;
+      line-height: 1.5;
+    }
+
+    .code-block {
+      margin: 2px 0 2px 0;
+      padding: 8px;
+      font-size: 13px;
+    }
+
+    .resizer {
+      width: 6px;
+      background: #ccc;
+      cursor: col-resize;
+      height: auto;
+      margin: 0 0px;
+      border-radius: 3px;
+      transition: background 0.2s;
+      z-index: 10;
+    }
+    .resizer:hover, .resizing {
+      background: #888;
+    }
+  </style>
+</head>
+<body>
+  <h1>Terraform Plan Formatter</h1>
+  
+  <div class="container">
+    <div class="input-section">
+      <h2>Input: Raw Terraform Plan</h2>
+      <textarea id="input-plan" placeholder="Paste your terraform plan output here..."></textarea>
+      <button id="format-button">Format Plan</button>
+    </div>
+    <div class="resizer" id="resizer"></div>
+    <div class="output-section">
+      <h2>Output: Formatted Plan</h2>
+      <div id="output" class="output"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Terraform Plan Formatter - A tool to make Terraform plans more readable</p>
+  </div>
+
+  <script>
+    document.getElementById('format-button').addEventListener('click', formatTerraformPlan);
+
+    function formatTerraformPlan() {
+      const inputText = document.getElementById('input-plan').value;
+      if (!inputText.trim()) {
+        alert('Please paste a Terraform plan output first.');
+        return;
+      }
+
+      try {
+        const formatted = processTerraformPlan(inputText);
+        document.getElementById('output').innerHTML = formatted;
+      } catch (error) {
+        console.error('Error formatting plan:', error);
+        document.getElementById('output').innerHTML = 'Error parsing the Terraform plan. Please check if the input is valid.';
+      }
+    }
+
+    function processTerraformPlan(planText) {
+      // Extract the summary line about plan actions
+      const summaryMatch = planText.match(/Plan: (\d+) to add, (\d+) to change, (\d+) to destroy/);
+      
+      if (!summaryMatch) {
+        return 'Could not find plan summary. Is this a valid Terraform plan output?';
+      }
+
+      const addCount = parseInt(summaryMatch[1]);
+      const changeCount = parseInt(summaryMatch[2]);
+      const destroyCount = parseInt(summaryMatch[3]);
+
+      // Split the plan into resource blocks
+      const resourceBlocks = extractResourceBlocks(planText);
+      
+      // Group resources by type and action
+      const groupedResources = groupResourcesByType(resourceBlocks);
+
+      // Generate the formatted output
+      let output = generateOutput(addCount, changeCount, destroyCount, groupedResources);
+      
+      return output;
+    }
+
+    function extractResourceBlocks(planText) {
+      // 直前の連続するコメント行（# ...）を1つのグループとして抽出
+      const resourcePattern = /((?:^|\n)(?:\s*#.*\n)*)\s*([+~\-\/]*)\s*resource\s+"([^"]+)"\s+"([^"]+)"\s*{[\s\S]+?^\s*}/gm;
+      const resources = [];
+      let match;
+      while ((match = resourcePattern.exec(planText)) !== null) {
+        let comment = match[1] ? match[1].trim() : '';
+        const actionPrefix = match[2] ? match[2].trim() : '';
+        const resourceType = match[3];
+        const resourceName = match[4];
+        // コメント行が複数ある場合も1つのグループとして扱う
+        if (comment) {
+          comment = comment.split('\n').map(l => l.trim()).filter(l => l.startsWith('#')).join('\n');
+        }
+        const blockBody = match[0].replace(/^\n/, '').replace(comment, '').trimStart();
+        const fullBlock = (comment ? comment + '\n' : '') + blockBody;
+
+        // アクションタイプ判定
+        let actionType = 'update';
+        if (actionPrefix.includes('+') && actionPrefix.includes('-')) {
+          actionType = 'replace';
+        } else if (actionPrefix.startsWith('+')) {
+          actionType = 'add';
+        } else if (actionPrefix.startsWith('-')) {
+          actionType = 'remove';
+        } else if (actionPrefix.startsWith('~')) {
+          actionType = 'update';
+        }
+        if (fullBlock.includes('must be replaced') || actionPrefix.includes('+/-')) {
+          actionType = 'replace';
+        }
+
+        resources.push({
+          type: resourceType,
+          name: resourceName,
+          actionType: actionType,
+          block: fullBlock
+        });
+      }
+      return resources;
+    }
+
+    function groupResourcesByType(resources) {
+      const grouped = {};
+      
+      resources.forEach(resource => {
+        const key = resource.type;
+        
+        if (!grouped[key]) {
+          grouped[key] = [];
+        }
+        
+        grouped[key].push(resource);
+      });
+      
+      return grouped;
+    }
+
+    function generateOutput(addCount, changeCount, destroyCount, groupedResources) {
+      let output = `<div class="summary">
+        <h2>Terraform Plan Summary</h2>
+        <ul>
+          <li><span class="add">${addCount} to add</span></li>
+          <li><span class="change">${changeCount} to change</span></li>
+          <li><span class="remove">${destroyCount} to destroy</span></li>
+        </ul>
+      </div>`;
+      
+      // Add resource sections
+      for (const [resourceType, resources] of Object.entries(groupedResources)) {
+        // Terraformリソース型名そのままを表示
+        output += `<div class="resource-section">
+          <div class="resource-header" onclick="toggleResource(this)">
+            <span>${resourceType}</span>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="resource-content">`;
+        
+        // Group similar resources for compact display
+        const similarResources = groupSimilarResources(resources);
+        
+        for (const group of similarResources) {
+          // サブサマリを生成
+          const subSummary = generateSubSummary(group.resources);
+          if (group.count > 1) {
+            // Multiple similar resources
+            output += `<div class="resource-header" onclick="toggleResource(this)">
+              <span>${group.count} similar resources${subSummary ? ' <span style=\"font-weight:normal;color:#888;\">(' + subSummary + ')</span>' : ''}</span>
+              <span class="toggle-icon">▼</span>
+            </div>
+            <div class="resource-content">
+              <ul style="margin: 5px 0;">`;
+            
+            group.resources.forEach(r => {
+              output += `<li>${r.type}.${r.name}</li>`;
+            });
+            
+            output += `</ul>
+              <div class="code-block">${formatCodeBlock(group.resources[0].block, true)}</div>
+            </div>`;
+          } else {
+            // Single resource
+            const resource = group.resources[0];
+            output += `<div class="resource-header" onclick="toggleResource(this)">
+              <span>${resource.type}.${resource.name}${subSummary ? ' <span style=\"font-weight:normal;color:#888;\">(' + subSummary + ')</span>' : ''}</span>
+              <span class="toggle-icon">▼</span>
+            </div>
+            <div class="resource-content">
+              <div class="code-block">${formatCodeBlock(resource.block)}</div>
+            </div>`;
+          }
+        }
+        
+        output += `</div></div>`;
+      }
+      
+      return output;
+    }
+
+    // サブサマリ生成関数
+    function generateSubSummary(resources) {
+      let add = 0, change = 0, destroy = 0, replace = 0;
+      resources.forEach(r => {
+        if (r.actionType === 'add') add++;
+        else if (r.actionType === 'remove') destroy++;
+        else if (r.actionType === 'replace') { add++; destroy++; replace++; }
+        else if (r.actionType === 'update') change++;
+      });
+      if (replace) return `replace: <span class="add">${add} to add</span>, <span class="remove">${destroy} to destroy</span>`;
+      if (change) return `update in-place: <span class="change">${change} to change</span>`;
+      if (add) return `add: <span class="add">${add} to add</span>`;
+      if (destroy) return `destroy: <span class="remove">${destroy} to destroy</span>`;
+      return '';
+    }
+
+    function groupSimilarResources(resources) {
+      // Group very similar resources together (e.g., multiple IP entries added to different IP sets)
+      const groups = [];
+      
+      resources.forEach(resource => {
+        // Try to find an existing similar group
+        const similarGroup = groups.find(group => {
+          if (group.actionType !== resource.actionType) return false;
+          
+          // For simplicity, consider resources similar if they have the same action type
+          // and the block content is >80% similar
+          const existingBlock = group.resources[0].block;
+          const similarity = calculateSimilarity(existingBlock, resource.block);
+          return similarity > 0.8;
+        });
+        
+        if (similarGroup) {
+          similarGroup.resources.push(resource);
+          similarGroup.count++;
+        } else {
+          groups.push({
+            actionType: resource.actionType,
+            resources: [resource],
+            count: 1
+          });
+        }
+      });
+      
+      return groups;
+    }
+
+    function calculateSimilarity(str1, str2) {
+      // Simple similarity measure, ratio of common lines
+      const lines1 = str1.split('\n');
+      const lines2 = str2.split('\n');
+      
+      let commonLines = 0;
+      const shorterLength = Math.min(lines1.length, lines2.length);
+      
+      for (let i = 0; i < shorterLength; i++) {
+        if (lines1[i].trim() === lines2[i].trim()) {
+          commonLines++;
+        }
+      }
+      
+      return commonLines / shorterLength;
+    }
+
+    function formatActionType(actionType) {
+      switch (actionType) {
+        case 'add':
+          return '<span class="add">create</span>';
+        case 'remove':
+          return '<span class="remove">destroy</span>';
+        case 'replace':
+          return '<span class="remove">replace</span>';
+        case 'update':
+          return '<span class="change">update in-place</span>';
+        default:
+          return actionType;
+      }
+    }
+
+    function formatCodeBlock(block, simplified = false) {
+      // Format the code block with proper highlighting and indentation
+      let formattedBlock = block.split('\n').map(line => {
+        // 先頭スペース数をカウント
+        const leadingSpaces = line.match(/^\s*/)[0].length;
+        // スペースを&ensp;で再現
+        const htmlIndent = '&ensp;'.repeat(leadingSpaces);
+        let htmlLine = line.trimStart();
+        // Highlight additions, removals, and changes
+        htmlLine = htmlLine.replace(/^(\+\s+)/, '<span class="add">$1</span>');
+        htmlLine = htmlLine.replace(/^(-\s+)/, '<span class="remove">$1</span>');
+        htmlLine = htmlLine.replace(/^(~\s+)/, '<span class="change">$1</span>');
+        return htmlIndent + htmlLine;
+      }).join('<br>');
+      // If simplified, try to condense long lists of similar items (like IP ranges)
+      if (simplified) {
+        // Look for patterns like lists of IP addresses or similar repeated structures
+        const ipRangeMatch = formattedBlock.match(/(\+&ensp;*"[0-9.]+\/[0-9]+"[,<br>]+){5,}/);
+        if (ipRangeMatch) {
+          const ipRangeLines = ipRangeMatch[0].split('<br>');
+          if (ipRangeLines.length > 10) {
+            // Show first 3 and last 2 entries, summarize the rest
+            const condensed = ipRangeLines.slice(0, 3).join('<br>') + 
+                              '<br>&ensp;&ensp;<span class="change">... (' + (ipRangeLines.length - 5) + ' more similar entries) ...</span><br>' +
+                              ipRangeLines.slice(-2).join('<br>');
+            formattedBlock = formattedBlock.replace(ipRangeMatch[0], condensed);
+          }
+        }
+      }
+      return formattedBlock;
+    }
+
+    function toggleResource(element) {
+      const parent = element.parentElement;
+      parent.classList.toggle('collapsed');
+    }
+
+    // リサイズバーのドラッグ処理
+    const resizer = document.getElementById('resizer');
+    const inputSection = document.querySelector('.input-section');
+    const outputSection = document.querySelector('.output-section');
+    let isResizing = false;
+
+    resizer.addEventListener('mousedown', function(e) {
+      isResizing = true;
+      document.body.classList.add('resizing');
+      document.body.style.cursor = 'col-resize';
+    });
+
+    document.addEventListener('mousemove', function(e) {
+      if (!isResizing) return;
+      // 親コンテナの左端からの距離
+      const containerRect = document.querySelector('.container').getBoundingClientRect();
+      let newInputWidth = e.clientX - containerRect.left;
+      // 最小・最大幅を設定
+      if (newInputWidth < 200) newInputWidth = 200;
+      if (newInputWidth > 700) newInputWidth = 700;
+      inputSection.style.flex = '0 0 ' + newInputWidth + 'px';
+      inputSection.style.maxWidth = newInputWidth + 'px';
+      inputSection.style.minWidth = newInputWidth + 'px';
+    });
+
+    document.addEventListener('mouseup', function(e) {
+      if (isResizing) {
+        isResizing = false;
+        document.body.classList.remove('resizing');
+        document.body.style.cursor = '';
+      }
+    });
+  </script>
+</body>
+</html>
