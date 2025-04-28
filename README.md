@@ -3,7 +3,7 @@
 このリポジトリは、Terraform Planの出力を見やすく整形するWebツールです。
 
 ## ファイル構成
-- `terraform_plan_formatter.html` : メインのHTMLアプリケーション（CSS・JSも内包）
+- `index.html` : メインのHTMLアプリケーション（CSS・JSも内包）
 - `README.md` : この説明ファイル
 
 ## 使い方
