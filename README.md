@@ -12,7 +12,15 @@
 - `README.md` : この説明ファイル
 
 ## 使い方
-1. Terraform Planの出力をコピーして、左側のテキストエリアに貼り付けます。
+1. Terraform Planの出力のうち、
+   ```
+   Terraform will perform the following actions:
+   ```
+   から
+   ```
+   Plan: ... to add, ... to change, ... to destroy.
+   ```
+   までの範囲をコピーして、左側のテキストエリアに貼り付けてください。
 2. 「Format Plan」ボタンを押すと、右側に整形された内容が表示されます。
 
 ---
@@ -20,7 +28,8 @@
 - ご自由にご利用・カスタマイズください。
 - Pages に公開してますので自由にご利用ください。
 
----
+## 公開ページ
+https://nix-tkobayashi.github.io/terraform-plan-formatter/
 
 ## 作者
 
