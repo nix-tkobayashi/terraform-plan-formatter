@@ -255,6 +255,12 @@
       try {
         const formatted = processTerraformPlan(inputText);
         document.getElementById('output').innerHTML = formatted;
+        // すべてのトグルを閉じる
+        setTimeout(() => {
+          document.querySelectorAll('.resource-section').forEach(section => {
+            section.classList.add('collapsed');
+          });
+        }, 0);
       } catch (error) {
         console.error('Error formatting plan:', error);
         document.getElementById('output').innerHTML = 'Error parsing the Terraform plan. Please check if the input is valid.';
@@ -355,10 +361,12 @@
       
       // Add resource sections
       for (const [resourceType, resources] of Object.entries(groupedResources)) {
-        // Terraformリソース型名そのままを表示
+        // 子リソースの合計サブサマリを計算
+        const parentSummary = generateSubSummary(resources);
+        // Terraformリソース型名そのままを表示し、サブサマリも表示
         output += `<div class="resource-section">
           <div class="resource-header" onclick="toggleResource(this)">
-            <span>${resourceType}</span>
+            <span>${resourceType}${parentSummary ? ' <span style=\"font-weight:normal;color:#888;\">(' + parentSummary + ')</span>' : ''}</span>
             <span class="toggle-icon">▼</span>
           </div>
           <div class="resource-content">`;
